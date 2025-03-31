@@ -3,7 +3,7 @@ from . import auth_bp
 from models.user import User
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from config import Config
+#from config import Config
 from db import db
 import re
 
