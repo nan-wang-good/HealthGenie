@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+
+{% block title %}Diet - HealthGenie{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!--Area of Filters-->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <select class="form-select" id="categoryFilter">
+                <option value="">Select Category</option>
+                {% for category in categories %}
+                    <option value="{{ category.strCategory }}">{{ category.strCategory }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="areaFilter">
+                <option value="">Select Area</option>
+                {% for area in areas %}
+                    <option value="{{ area.strArea }}">{{ area.strArea }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="ingredientFilter">
+                <option value="">Select Main Ingredient</option>
+                {% for ingredient in ingredients %}
+                    <option value="{{ ingredient.strIngredient }}">{{ ingredient.strIngredient }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Displayed Meals -->
+    <div class="row" id="mealsContainer">
+        {% for meal in meals %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{{ meal.strMealThumb }}/medium" class="card-img-top" alt="{{ meal.strMeal }}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ meal.strMeal }}</h5>
+                    <p class="card-text">
+                        <small class="text-muted">Category: {{ meal.strCategory }}</small><br>
+                        <small class="text-muted">Area: {{ meal.strArea }}</small>
+                    </p>
+                    <button class="btn btn-primary" onclick="showMealDetails('{{ meal.idMeal }}')">View Details</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <!-- Pagination Nav -->
+    <div id="pagination" class="mt-4"></div>
+</div>
+
+<!-- Meal details modal -->
+<div class="modal fade" id="mealDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Meal Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="mealDetailContent">
+                <!-- Dynamically load meal details -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showMealDetails(mealId) {
+    fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`)
+        .then(response => response.json())
+        .then(data => {
+            const meal = data.meals[0];
+            const detailHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <img src="${meal.strMealThumb}/medium" class="img-fluid rounded" alt="${meal.strMeal}">
+                    </div>
+                    <div class="col-md-6">
+                        <h4>${meal.strMeal}</h4>
+                        <p><strong>Category:</strong> ${meal.strCategory}</p>
+                        <p><strong>Area:</strong> ${meal.strArea}</p>
+                        <p><strong>Instructions:</strong></p>
+                        <p>${meal.strInstructions}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('mealDetailContent').innerHTML = detailHtml;
+            new bootstrap.Modal(document.getElementById('mealDetailModal')).show();
+        });
+}
+
+// Filter Function
+const filters = {
+    'categoryFilter': 'c',
+    'areaFilter': 'a',
+    'ingredientFilter': 'i'
+};
+
+Object.keys(filters).forEach(filterId => {
+    document.getElementById(filterId).addEventListener('change', function() {
+        const value = this.value;
+        if (value) {
+            fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?${filters[filterId]}=${encodeURIComponent(value)}`)
+                .then(response => response.json())
+                .then(data => {
+                    currentPage = 1;
+                    document.getElementById('mealsContainer').dataset.currentMeals = JSON.stringify(data.meals);
+                    updateMealsDisplay(data.meals);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+});
+
+let currentPage = 1;
+const itemsPerPage = 10;
+
+function updateMealsDisplay(meals) {
+    if (!meals) return;
+    const container = document.getElementById('mealsContainer');
+    const pagination = document.getElementById('pagination');
+    
+    // Pagination Logics
+    const totalPages = Math.ceil(meals.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedMeals = meals.slice(startIndex, startIndex + itemsPerPage);
+    
+    container.innerHTML = paginatedMeals.map(meal => `
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="${meal.strMealThumb}/medium" class="card-img-top" alt="${meal.strMeal}">
+                <div class="card-body">
+                    <h5 class="card-title">${meal.strMeal}</h5>
+                    <button class="btn btn-primary" onclick="showMealDetails('${meal.idMeal}')">View Details</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    // Generate Pagination Nav
+    pagination.innerHTML = `
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                </li>
+                ${Array.from({length: totalPages}, (_, i) => `
+                    <li class="page-item ${i + 1 === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i + 1})">${i + 1}</a>
+                    </li>
+                `).join('')}
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+                </li>
+            </ul>
+        </nav>
+    `;
+}
+
+function changePage(newPage) {
+    currentPage = newPage;
+    const meals = JSON.parse(document.getElementById('mealsContainer').dataset.currentMeals || '[]');
+    updateMealsDisplay(meals);
+}
+</script>
+{% endblock %}
