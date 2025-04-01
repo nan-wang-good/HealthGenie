@@ -133,11 +133,14 @@ document.getElementById('fitnessForm').addEventListener('submit', function(e) {
     fetch('/fitness/calculate', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         },
         body: JSON.stringify(formData)
     })
+    
     .then(response => response.json())
+
     .then(data => {
         const planResult = document.getElementById('planResult');
         const planContent = document.getElementById('planContent');

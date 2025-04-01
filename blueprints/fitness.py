@@ -4,17 +4,23 @@ from math import pow
 from flask import jsonify, request
 import pandas as pd
 from sk.fitness_model import generate_recommendations as model_generate_recommendations
-# from sdv.tabular import GaussianCopula
+import concurrent.futures
+import time
 
-@fitness_bp.route('/')
+@fitness_bp.route('/', methods=['GET'])
 def index():
     return render_template('fitness/index.html')
 
 @fitness_bp.route('/calculate', methods=['POST'])
 def calculate():
-    # Get the required fields
+    start_time = time.time()
+    
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400, {'Content-Type': 'application/json'}
+    
     try:
         data = request.get_json()
+
         if not all(key in data for key in ['weight', 'height', 'age', 'gender', 'goal', 'level']):
             return jsonify({'error': 'Missing required parameters'}), 400
             
@@ -23,15 +29,21 @@ def calculate():
         age_range = data.get('age')
         gender = data.get('gender')
         goal = data.get('goal')
-        level = data.get('level')  # Directly use the user-selected exercise intensity
+        level = data.get('level')
         
-        # Get the options
         waist = data.get('waist')
         hips = data.get('hips')
         
-        # Calculate BMI
-        bmi = weight / pow(height, 2)
-        bmi_category = get_bmi_category(bmi)
+        # Parallel calculation of BMI and BFP
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            bmi_future = executor.submit(calculate_bmi, weight, height)
+            bfp_future = executor.submit(calculate_bfp_parallel, weight, height, age_range, gender)
+            
+            bmi = bmi_future.result()
+            bfp = bfp_future.result()
+            
+            bmi_category = get_bmi_category(bmi)
+            bfp_category = get_bfp_category(bfp, gender)
         
         # BMI result information
         bmi_info = {
@@ -51,17 +63,6 @@ def calculate():
             'gender': gender
         }
         
-        # Calculate body fat percentage
-        age_map = {
-            '13-18': 15,
-            '19-35': 27,
-            '36-55': 45,
-            '56 and above': 65
-        }
-        age = age_map.get(age_range, 27)  # The median of 19-35 is used by default
-        bfp = calculate_bfp(bmi, age, gender)
-        bfp_category = get_bfp_category(bfp, gender)
-        
         # Body fat percentage result information
         bfp_info = {
             'category': 'Body Fat Percentage (BFP)',
@@ -76,55 +77,27 @@ def calculate():
             'gender': gender
         }
         
-        # Calculate waist-to-hip ratio (if data provided)
-        whr = None
-        whr_category = None
-        whr_info = None
-        if waist and hips:
-            whr = float(waist) / float(hips)
-            whr_category = get_whr_category(whr, gender)
-            whr_info = {
-                'category': 'Waist-Hip Ratio (WHR)',
-                'description': 'Waist-hip ratio is an indicator for evaluating abdominal fat distribution and is closely related to health risks.',
-                'formula': 'WHR = Waist Circumference(cm) ÷ Hip Circumference(cm)',
-                'ranges': [
-                    {'gender': 'Male', 'healthy': '< 0.90', 'high_risk': '≥ 0.95'},
-                    {'gender': 'Female', 'healthy': '< 0.85', 'high_risk': '≥ 0.90'}
-                ],
-                'result': f'{round(whr, 2)} - {whr_category}',
-                'note': 'A higher waist-hip ratio indicates a greater risk of cardiovascular disease and metabolic syndrome.',
-                'gender': gender
-            }
+        # Parallel calculation of WHR and daily calories
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            whr_future = executor.submit(calculate_whr_parallel, waist, hips, gender) if waist and hips else None
+            calories_future = executor.submit(calculate_daily_calories_parallel, weight, height * 100, age_range, gender, level)
+            
+            whr_info = whr_future.result() if whr_future else None
+            daily_calories = calories_future.result()
         
-        # Calculate the daily calories and other information you need...
-        daily_calories = calculate_daily_calories(weight, height * 100, age, gender, level)
         height_in_meters = height
         weight_range = {
             'min': round(18.5 * (height_in_meters ** 2), 1),
             'max': round(24.9 * (height_in_meters ** 2), 1)
         }
         
-        # Generate fitness recommendations
-        fitness_recommendations = generate_recommendations(
-            age_range, level, goal, bmi_category, bfp_category
-        )
-        
-        # Generate a weekly training plan
-        workout_days = ['Monday', 'Wednesday', 'Friday'] if level == 'Low' else \
-                      ['Monday', 'Tuesday', 'Thursday', 'Friday'] if level == 'Medium' else \
-                      ['Monday', 'Tuesday', 'Thursday', 'Friday', 'Saturday']
-        
-        workout_plan = []
-        for day in workout_days:
-            exercises = ', '.join(fitness_recommendations)
-            duration = '30-45 minutes' if level == 'Low' else \
-                      '45-60 minutes' if level == 'Medium' else \
-                      '60-90 minutes'
-            workout_plan.append({
-                'day': day,
-                'exercises': exercises,
-                'duration': duration
-            })
+        # Generate fitness recommendations in parallel with workout plan
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            rec_future = executor.submit(generate_recommendations, age_range, level, goal, bmi_category, bfp_category)
+            workout_future = executor.submit(generate_workout_plan, rec_future, level)
+            
+            fitness_recommendations = rec_future.result()
+            workout_plan = workout_future.result()
         
         # Generate nutritional recommendations
         nutrition_tips = [
@@ -135,7 +108,7 @@ def calculate():
             "Supplement with essential vitamins and minerals"
         ]
         
-        # Prepare user data for use in generating personalized recommendations
+        # Prepare user data for model recommendations
         user_data = {
             'age': age_range,
             'gender': gender,
@@ -153,6 +126,9 @@ def calculate():
         except Exception as e:
             return jsonify({'error': 'Failed to generate exercise recommendations'}), 500
         
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
         return jsonify({
             'bmi_info': bmi_info,
             'bfp_info': bfp_info,
@@ -161,12 +137,74 @@ def calculate():
             'weight_range': weight_range,
             'workout_plan': workout_plan,
             'nutrition_tips': nutrition_tips,
-            'exercise_recommendations': exercise_recommendations
+            'exercise_recommendations': exercise_recommendations,
+            'execution_time_seconds': round(execution_time, 4)
         })
         
     except (ValueError, TypeError) as e:
         return jsonify({'error': 'Invalid input parameters'}), 400
 
+# Parallel calculation functions
+def calculate_bmi(weight, height):
+    return weight / pow(height, 2)
+
+def calculate_bfp_parallel(weight, height, age_range, gender):
+    bmi = calculate_bmi(weight, height)
+    age_map = {
+        '13-18': 15,
+        '19-35': 27,
+        '36-55': 45,
+        '56 and above': 65
+    }
+    age = age_map.get(age_range, 27)
+    return calculate_bfp(bmi, age, gender)
+
+def calculate_whr_parallel(waist, hips, gender):
+    whr = float(waist) / float(hips)
+    whr_category = get_whr_category(whr, gender)
+    return {
+        'category': 'Waist-Hip Ratio (WHR)',
+        'description': 'Waist-hip ratio is an indicator for evaluating abdominal fat distribution and is closely related to health risks.',
+        'formula': 'WHR = Waist Circumference(cm) ÷ Hip Circumference(cm)',
+        'ranges': [
+            {'gender': 'Male', 'healthy': '< 0.90', 'high_risk': '≥ 0.95'},
+            {'gender': 'Female', 'healthy': '< 0.85', 'high_risk': '≥ 0.90'}
+        ],
+        'result': f'{round(whr, 2)} - {whr_category}',
+        'note': 'A higher waist-hip ratio indicates a greater risk of cardiovascular disease and metabolic syndrome.',
+        'gender': gender
+    }
+
+def calculate_daily_calories_parallel(weight, height, age_range, gender, activity_level):
+    age_map = {
+        '13-18': 15,
+        '19-35': 27,
+        '36-55': 45,
+        '56 and above': 65
+    }
+    age = age_map.get(age_range, 27)
+    return calculate_daily_calories(weight, height, age, gender, activity_level)
+
+def generate_workout_plan(rec_future, level):
+    fitness_recommendations = rec_future.result()
+    workout_days = ['Monday', 'Wednesday', 'Friday'] if level == 'Low' else \
+                  ['Monday', 'Tuesday', 'Thursday', 'Friday'] if level == 'Medium' else \
+                  ['Monday', 'Tuesday', 'Thursday', 'Friday', 'Saturday']
+    
+    workout_plan = []
+    for day in workout_days:
+        exercises = ', '.join(fitness_recommendations)
+        duration = '30-45 minutes' if level == 'Low' else \
+                  '45-60 minutes' if level == 'Medium' else \
+                  '60-90 minutes'
+        workout_plan.append({
+            'day': day,
+            'exercises': exercises,
+            'duration': duration
+        })
+    return workout_plan
+
+# Original helper functions remain the same
 def get_bmi_category(bmi):
     if bmi < 18.5:
         return 'Underweight'
@@ -219,7 +257,6 @@ def get_whr_category(whr, gender):
         else:
             return 'High Risk'
 
-
 def generate_recommendations(age_range, level, goal, bmi_category, bfp_category):
     base_recommendations = {
         '13-18': {
@@ -247,7 +284,6 @@ def generate_recommendations(age_range, level, goal, bmi_category, bfp_category)
         }
     }
     
-    # Copy teen's training plan for other age groups and adjust based on age characteristics
     base_recommendations['19-35'] = base_recommendations['13-18']
     base_recommendations['36-55'] = {
         level: {
@@ -268,7 +304,6 @@ def generate_recommendations(age_range, level, goal, bmi_category, bfp_category)
         for level, goals in base_recommendations['36-55'].items()
     }
     
-    # Adjust recommendations based on BMI and body fat percentage
     recommendations = base_recommendations[age_range][level][goal]
     
     if bmi_category.startswith('Obesity') or bfp_category == 'Obese':
@@ -277,22 +312,21 @@ def generate_recommendations(age_range, level, goal, bmi_category, bfp_category)
                                     for x in ['run', 'jump', 'weight'])]
         recommendations.extend(['Swimming', 'Elliptical', 'Dynamic Stretching'])
     
-    return recommendations[:3]  # Return top 3 recommendations
+    return recommendations[:3]
 
 def calculate_daily_calories(weight, height, age, gender, activity_level):
-    # Basal metabolic rate(BMR)
     if gender == 'Male':
         bmr = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age)
     else:  # Female
         bmr = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age)
     
-    # Adjust according to activity level
     activity_multipliers = {
-        'Low': 1.2,      # Sedentary
-        'Medium': 1.55,  # Moderate physical activity
-        'High': 1.725    # Be physically active
+        'Low': 1.2,
+        'Medium': 1.55,
+        'High': 1.725
     }
     
     multiplier = activity_multipliers.get(activity_level, 1.2)
     return bmr * multiplier
+
 

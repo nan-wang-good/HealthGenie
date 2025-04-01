@@ -1,5 +1,6 @@
 from flask import render_template, jsonify
 from . import weather_bp
+#Api uses mock data combined with 'OpenWeatherMap' to return weather data to return weather information.
 
 @weather_bp.route('/')
 def index():

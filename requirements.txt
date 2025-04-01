@@ -1,6 +1,6 @@
 blinker==1.9.0
-boto3==1.37.14
-botocore
+boto3==1.35.0
+botocore==1.35.0
 certifi==2025.1.31
 charset-normalizer==3.4.1
 click==8.1.8
@@ -22,7 +22,7 @@ pandas==2.2.3
 python-dateutil
 pytz==2025.1
 requests==2.32.3
-s3transfer==0.11.4
+s3transfer==0.10.0
 scikit-learn==1.6.1
 scipy
 six==1.17.0

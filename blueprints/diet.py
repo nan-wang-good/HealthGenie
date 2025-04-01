@@ -2,7 +2,7 @@ from flask import render_template, request, jsonify
 from . import diet_bp
 import requests
 
-# TheMealDB APIBasicURL
+# TheMealDB APIBasicURL   ---Third Party API
 BASE_URL = 'https://www.themealdb.com/api/json/v1/1'
 
 @diet_bp.route('/')
