@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container">
-    <!--Area of Filters-->
+    <!-- Area of Filters -->
     <div class="row mb-4">
         <div class="col-md-4">
             <select class="form-select" id="categoryFilter">
@@ -37,21 +37,34 @@
         {% for meal in meals %}
         <div class="col-md-4 mb-4">
             <div class="card h-100">
-                <img src="{{ meal.strMealThumb }}/medium" class="card-img-top" alt="{{ meal.strMeal }}">
+                <img src="{{ meal.strMealThumb }}/preview" class="card-img-top" alt="{{ meal.strMeal }}" loading="lazy">
                 <div class="card-body">
                     <h5 class="card-title">{{ meal.strMeal }}</h5>
+                    {% if meal.strCategory or meal.strArea %}
                     <p class="card-text">
+                        {% if meal.strCategory %}
                         <small class="text-muted">Category: {{ meal.strCategory }}</small><br>
+                        {% endif %}
+                        {% if meal.strArea %}
                         <small class="text-muted">Area: {{ meal.strArea }}</small>
+                        {% endif %}
                     </p>
+                    {% endif %}
                     <button class="btn btn-primary" onclick="showMealDetails('{{ meal.idMeal }}')">View Details</button>
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
-    <!-- Pagination Nav -->
+    
+    <!-- Pagination -->
     <div id="pagination" class="mt-4"></div>
+    
+    <!-- Error Alert (hidden by default) -->
+    <div id="errorAlert" class="alert alert-danger mt-3" style="display:none">
+        <span id="errorMessage"></span>
+        <button type="button" class="btn-close float-end" onclick="hideError()"></button>
+    </div>
 </div>
 
 <!-- Meal details modal -->
@@ -63,7 +76,10 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="mealDetailContent">
-                <!-- Dynamically load meal details -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Loading meal details...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -72,79 +88,172 @@
 
 {% block extra_js %}
 <script>
+// Global state
+let currentMeals = {{ meals|tojson|safe if meals else '[]' }};
+let currentPage = 1;
+const itemsPerPage = 9;
+
+// Initialize filters
+document.addEventListener('DOMContentLoaded', function() {
+    setupFilters();
+    renderMeals(currentMeals);
+});
+
+function setupFilters() {
+    const filters = {
+        'categoryFilter': 'c',
+        'areaFilter': 'a',
+        'ingredientFilter': 'i'
+    };
+
+    Object.keys(filters).forEach(filterId => {
+        document.getElementById(filterId).addEventListener('change', function() {
+            const param = filters[filterId];
+            const value = this.value;
+            
+            if (!value) {
+                renderMeals(currentMeals);
+                return;
+            }
+
+            showLoading();
+            
+            fetch(`/diet/filter?${param}=${encodeURIComponent(value)}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(response.statusText);
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    currentMeals = data.meals || [];
+                    currentPage = 1;
+                    renderMeals(currentMeals);
+                })
+                .catch(error => {
+                    showError(`Failed to load meals: ${error.message}`);
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+        });
+    });
+}
+
 function showMealDetails(mealId) {
-    fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`)
-        .then(response => response.json())
+    const modal = new bootstrap.Modal('#mealDetailModal');
+    modal.show();
+    
+    fetch(`/diet/meal/${mealId}`)
+        .then(response => {
+            if (!response.ok) throw new Error(response.statusText);
+            return response.json();
+        })
         .then(data => {
-            const meal = data.meals[0];
-            const detailHtml = `
+            if (data.error) throw new Error(data.error);
+            
+            const meal = data;
+            const ingredients = [];
+            
+            // Extract ingredients and measures
+            for (let i = 1; i <= 20; i++) {
+                const ingredient = meal[`strIngredient${i}`];
+                if (ingredient) {
+                    ingredients.push({
+                        name: ingredient,
+                        measure: meal[`strMeasure${i}`] || ''
+                    });
+                }
+            }
+            
+            // Build modal content
+            document.getElementById('mealDetailContent').innerHTML = `
                 <div class="row">
                     <div class="col-md-6">
-                        <img src="${meal.strMealThumb}/medium" class="img-fluid rounded" alt="${meal.strMeal}">
+                        <img src="${meal.strMealThumb}/preview" class="img-fluid rounded mb-3">
+                        ${meal.strYoutube ? `
+                        <div class="d-grid">
+                            <a href="${meal.strYoutube}" target="_blank" class="btn btn-danger">
+                                <i class="bi bi-youtube"></i> Watch on YouTube
+                            </a>
+                        </div>
+                        ` : ''}
                     </div>
                     <div class="col-md-6">
                         <h4>${meal.strMeal}</h4>
-                        <p><strong>Category:</strong> ${meal.strCategory}</p>
-                        <p><strong>Area:</strong> ${meal.strArea}</p>
-                        <p><strong>Instructions:</strong></p>
-                        <p>${meal.strInstructions}</p>
+                        <p class="text-muted">${meal.strArea} • ${meal.strCategory}</p>
+                        
+                        <h5 class="mt-4">Ingredients</h5>
+                        <ul class="list-group mb-3">
+                            ${ingredients.map(ing => `
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>${ing.name}</span>
+                                    <span class="text-muted">${ing.measure}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        
+                        <h5>Instructions</h5>
+                        <div class="bg-light p-3 rounded">
+                            ${meal.strInstructions.replace(/\r\n/g, '<br>')}
+                        </div>
                     </div>
                 </div>
             `;
-            document.getElementById('mealDetailContent').innerHTML = detailHtml;
-            new bootstrap.Modal(document.getElementById('mealDetailModal')).show();
+        })
+        .catch(error => {
+            document.getElementById('mealDetailContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Failed to load recipe</h5>
+                    <p>${error.message}</p>
+                    <button class="btn btn-sm btn-warning" onclick="showMealDetails('${mealId}')">
+                        Retry
+                    </button>
+                </div>
+            `;
         });
 }
 
-// Filter Function
-const filters = {
-    'categoryFilter': 'c',
-    'areaFilter': 'a',
-    'ingredientFilter': 'i'
-};
-
-Object.keys(filters).forEach(filterId => {
-    document.getElementById(filterId).addEventListener('change', function() {
-        const value = this.value;
-        if (value) {
-            fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?${filters[filterId]}=${encodeURIComponent(value)}`)
-                .then(response => response.json())
-                .then(data => {
-                    currentPage = 1;
-                    document.getElementById('mealsContainer').dataset.currentMeals = JSON.stringify(data.meals);
-                    updateMealsDisplay(data.meals);
-                })
-                .catch(error => console.error('Error:', error));
-        }
-    });
-});
-
-let currentPage = 1;
-const itemsPerPage = 10;
-
-function updateMealsDisplay(meals) {
-    if (!meals) return;
+function renderMeals(meals) {
     const container = document.getElementById('mealsContainer');
     const pagination = document.getElementById('pagination');
     
-    // Pagination Logics
-    const totalPages = Math.ceil(meals.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedMeals = meals.slice(startIndex, startIndex + itemsPerPage);
+    if (!meals || meals.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <h4>No meals found</h4>
+                <p>Try adjusting your filters</p>
+            </div>
+        `;
+        pagination.innerHTML = '';
+        return;
+    }
     
+    // Pagination
+    const totalPages = Math.ceil(meals.length / itemsPerPage);
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    const paginatedMeals = meals.slice(startIdx, startIdx + itemsPerPage);
+    
+    // Render meals
     container.innerHTML = paginatedMeals.map(meal => `
         <div class="col-md-4 mb-4">
             <div class="card h-100">
-                <img src="${meal.strMealThumb}/medium" class="card-img-top" alt="${meal.strMeal}">
+                <img src="${meal.strMealThumb}/preview" class="card-img-top" alt="${meal.strMeal}" loading="lazy">
                 <div class="card-body">
                     <h5 class="card-title">${meal.strMeal}</h5>
+                    ${(meal.strCategory || meal.strArea) ? `
+                    <p class="card-text">
+                        ${meal.strCategory ? `<small class="text-muted">Category: ${meal.strCategory}</small><br>` : ''}
+                        ${meal.strArea ? `<small class="text-muted">Area: ${meal.strArea}</small>` : ''}
+                    </p>
+                    ` : ''}
                     <button class="btn btn-primary" onclick="showMealDetails('${meal.idMeal}')">View Details</button>
                 </div>
             </div>
         </div>
     `).join('');
     
-    // Generate Pagination Nav
+    // Render pagination
     pagination.innerHTML = `
         <nav>
             <ul class="pagination justify-content-center">
@@ -166,8 +275,32 @@ function updateMealsDisplay(meals) {
 
 function changePage(newPage) {
     currentPage = newPage;
-    const meals = JSON.parse(document.getElementById('mealsContainer').dataset.currentMeals || '[]');
-    updateMealsDisplay(meals);
+    renderMeals(currentMeals);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function showLoading() {
+    document.getElementById('mealsContainer').innerHTML = `
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">Loading meals...</p>
+        </div>
+    `;
+    document.getElementById('pagination').innerHTML = '';
+}
+
+function hideLoading() {
+    // Handled within renderMeals()
+}
+
+function showError(message) {
+    const alert = document.getElementById('errorAlert');
+    document.getElementById('errorMessage').textContent = message;
+    alert.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('errorAlert').style.display = 'none';
 }
 </script>
 {% endblock %}
