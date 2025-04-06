@@ -1,6 +1,12 @@
 env/
 config.py
 
+# Python 字节码缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
