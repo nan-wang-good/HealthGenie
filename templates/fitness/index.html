@@ -1,0 +1,303 @@
+{% extends 'base.html' %}
+
+{% block title %}Fitness - HealthGenie{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Personal Fitness Plan</h4>
+                    <form id="fitnessForm" class="needs-validation" novalidate>
+                        <!-- Basic Information -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="weight" class="form-label">Weight (kg)</label>
+                                <input type="number" class="form-control" id="weight" required min="30" max="200" step="0.1">
+                                <div class="invalid-feedback">Please enter a valid weight (30-200 kg)</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="height" class="form-label">Height (cm)</label>
+                                <input type="number" class="form-control" id="height" required min="100" max="250" step="0.1">
+                                <div class="invalid-feedback">Please enter a valid height (100-250 cm)</div>
+                            </div>
+                        </div>
+
+                        <!-- Age and Gender -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="age" class="form-label">Age Group</label>
+                                <select class="form-select" id="age" required>
+                                    <option value="">Choose age group</option>
+                                    <option value="13-18">13-18</option>
+                                    <option value="19-35">19-35</option>
+                                    <option value="36-55">36-55</option>
+                                    <option value="56+">56 and above</option>
+                                </select>
+                                <div class="invalid-feedback">Please select your age group</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="gender" class="form-label">Gender</label>
+                                <select class="form-select" id="gender" required>
+                                    <option value="">Choose gender</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Male">Male</option>
+                                </select>
+                                <div class="invalid-feedback">Please select your gender</div>
+                            </div>
+                        </div>
+
+                        <!-- Goal -->
+                        <div class="mb-3">
+                            <label for="goal" class="form-label">Your Goal</label>
+                            <select class="form-select" id="goal" required>
+                                <option value="">Choose your goal</option>
+                                <option value="Muscle Gain">Muscle Gain</option>
+                                <option value="Fat Loss">Fat Loss</option>
+                                <option value="Body Shaping">Body Shaping</option>
+                                <option value="Improve Flexibility">Improve Flexibility</option>
+                                <option value="Improve Endurance">Improve Endurance</option>
+                                <option value="maintain">Maintain Current Weight</option>
+                            </select>
+                            <div class="invalid-feedback">Please select your goal</div>
+                        </div>
+
+                        <!-- Exercise Intensity -->
+                        <div class="mb-3">
+                            <label for="level" class="form-label">Exercise Intensity Level</label>
+                            <select class="form-select" id="level" required>
+                                <option value="">Choose intensity level</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                            <div class="invalid-feedback">Please select your exercise intensity level</div>
+                        </div>
+
+                        <!-- Optional Measurements -->
+                        <div class="mb-3">
+                            <p class="text-muted small">Enter more data to get more accurate recommendations:</p>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="waist" class="form-label">Waist circumference at navel level (cm)</label>
+                                    <input type="number" class="form-control" id="waist" min="40" max="200" step="0.1">
+                                    <div class="invalid-feedback">Please enter a valid waist measurement (40-200 cm)</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="hips" class="form-label">Hips at the widest part (cm)</label>
+                                    <input type="number" class="form-control" id="hips" min="40" max="200" step="0.1">
+                                    <div class="invalid-feedback">Please enter a valid hips measurement (40-200 cm)</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Generate Fitness Plan</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Result Display Area -->
+            <div id="planResult" class="card mt-4 d-none shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Your Personalized Fitness Plan</h4>
+                    <div id="planContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('fitnessForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (!this.checkValidity()) {
+        e.stopPropagation();
+        this.classList.add('was-validated');
+        return;
+    }
+
+    const formData = {
+        weight: document.getElementById('weight').value,
+        height: document.getElementById('height').value,
+        age: document.getElementById('age').value,
+        gender: document.getElementById('gender').value,
+        goal: document.getElementById('goal').value,
+        level: document.getElementById('level').value,
+        waist: document.getElementById('waist').value || null,
+        hips: document.getElementById('hips').value || null
+    };
+
+    fetch('/fitness/calculate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(formData)
+    })
+    
+    .then(response => response.json())
+
+    .then(data => {
+        const planResult = document.getElementById('planResult');
+        const planContent = document.getElementById('planContent');
+        
+        planContent.innerHTML = `
+            <div class="mb-4">
+                <h5>Personalized Exercise Recommendations</h5>
+                <div class="row mb-4">
+                    ${data.exercise_recommendations.map(rec => `
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">${rec.exercise}</h6>
+                                    <p class="card-text mb-2">
+                                        <span class="badge bg-primary">Confidence: ${rec.confidence}%</span>
+                                    </p>
+                                    <p class="card-text text-muted small">
+                                        <i class="fas fa-users"></i> ${rec.similar_users} similar users selected
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="mb-4">
+                <h5>Body Metrics</h5>
+                <!-- BMI Section -->
+                <div class="mb-3">
+                    <h6>${data.bmi_info.category}</h6>
+                    <p class="mb-2">${data.bmi_info.description}</p>
+                    <p class="mb-2">Formula: ${data.bmi_info.formula}</p>
+                    <p class="mb-2">Result: ${data.bmi_info.result}</p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>BMI Range</th>
+                                    <th>Classification</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="${data.bmi_info.result < 18.5 ? 'table-warning' : ''}">
+                                    <td>< 18.5</td>
+                                    <td>Underweight</td>
+                                </tr>
+                                <tr class="${data.bmi_info.result >= 18.5 && data.bmi_info.result <= 24.9 ? 'table-success' : ''}">
+                                    <td>18.5 - 24.9</td>
+                                    <td>Normal</td>
+                                </tr>
+                                <tr class="${data.bmi_info.result >= 25.0 && data.bmi_info.result <= 29.9 ? 'table-warning' : ''}">
+                                    <td>25.0 - 29.9</td>
+                                    <td>Overweight</td>
+                                </tr>
+                                <tr class="${data.bmi_info.result >= 30.0 && data.bmi_info.result <= 34.9 ? 'table-danger' : ''}">
+                                    <td>30.0 - 34.9</td>
+                                    <td>Obesity (Grade I)</td>
+                                </tr>
+                                <tr class="${data.bmi_info.result >= 35.0 && data.bmi_info.result <= 39.9 ? 'table-danger' : ''}">
+                                    <td>35.0 - 39.9</td>
+                                    <td>Obesity (Grade II)</td>
+                                </tr>
+                                <tr class="${data.bmi_info.result >= 40.0 ? 'table-danger' : ''}">
+                                    <td>≥ 40.0</td>
+                                    <td>Obesity (Grade III)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small">${data.bmi_info.note}</p>
+                </div>
+                <!-- BFP Section -->
+                <div class="mb-3">
+                    <h6>${data.bfp_info.category}</h6>
+                    <p class="mb-2">${data.bfp_info.description}</p>
+                    <p class="mb-2">Formula: ${data.bfp_info.formula}</p>
+                    <p class="mb-2">Result: ${data.bfp_info.result}</p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Gender</th>
+                                    <th>Healthy Range</th>
+                                    <th>Overweight Range</th>
+                                    <th>Obese Range</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="${data.bfp_info.gender === 'male' ? 'table-active' : ''} ${data.bfp_info.result.includes('Healthy') ? 'table-success' : ''}">                                    <td>Male</td>
+                                    <td>10-20%</td>
+                                    <td>20-25%</td>
+                                    <td>> 25%</td>
+                                </tr>
+                                <tr class="${data.bfp_info.gender === 'female' ? 'table-active' : ''} ${data.bfp_info.result.includes('Healthy') ? 'table-success' : ''}">                                    <td>Female</td>
+                                    <td>20-30%</td>
+                                    <td>30-35%</td>
+                                    <td>> 35%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small">${data.bfp_info.note}</p>
+                </div>
+                <!-- WHR Section -->
+                ${data.whr_info ? `
+                <div class="mb-3">
+                    <h6>${data.whr_info.category}</h6>
+                    <p class="mb-2">${data.whr_info.description}</p>
+                    <p class="mb-2">Formula: ${data.whr_info.formula}</p>
+                    <p class="mb-2">Result: ${data.whr_info.result}</p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Gender</th>
+                                    <th>Healthy Range</th>
+                                    <th>High Risk Range</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="${data.whr_info.gender === 'male' ? 'table-active' : ''} ${data.whr_info.result.includes('Healthy') ? 'table-success' : data.whr_info.result.includes('High Risk') ? 'table-danger' : 'table-warning'}">                                    <td>Male</td>
+                                    <td>< 0.90</td>
+                                    <td>≥ 0.95</td>
+                                </tr>
+                                <tr class="${data.whr_info.gender === 'female' ? 'table-active' : ''} ${data.whr_info.result.includes('Healthy') ? 'table-success' : data.whr_info.result.includes('High Risk') ? 'table-danger' : 'table-warning'}">                                    <td>Female</td>
+                                    <td>< 0.85</td>
+                                    <td>≥ 0.90</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small">${data.whr_info.note}</p>
+                </div>
+                ` : ''}
+            </div>
+            <div class="mb-4">
+                <h5>Daily Nutritional Needs</h5>
+                <p class="mb-2">Daily Calorie Requirement: ${data.daily_calories} calories</p>
+                <p>Recommended Weight Range: ${data.weight_range.min}-${data.weight_range.max} kg</p>
+            </div>
+            <div>
+                <h5>Nutrition Tips</h5>
+                <ul class="list-unstyled">
+                    ${data.nutrition_tips.map(tip => `
+                        <li class="mb-2">• ${tip}</li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+        
+        planResult.classList.remove('d-none');
+        planResult.scrollIntoView({ behavior: 'smooth' });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to generate fitness plan. Please try again.');
+    });
+});
+</script>
+{% endblock %}

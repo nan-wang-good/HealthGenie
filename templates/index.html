@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Carousel -->
+<div id="carouselIndicators" class="carousel slide" data-bs-ride="carousel">
+    <ol class="carousel-indicators">
+        <li data-bs-target="#carouselIndicators" data-bs-slide-to="0" class="active"></li>
+        <li data-bs-target="#carouselIndicators" data-bs-slide-to="1"></li>
+        <li data-bs-target="#carouselIndicators" data-bs-slide-to="2"></li>
+        <li data-bs-target="#carouselIndicators" data-bs-slide-to="3"></li>
+    </ol>
+    <div class="carousel-inner rounded shadow-lg">
+        <div class="carousel-item active">
+            <img src="{{ url_for('static', filename='img/carousel-1.jpg') }}" class="d-block w-100" alt="Healthy Life" style="height: 500px; object-fit: cover;">
+            <div class="carousel-caption d-none d-md-block" style="background: rgba(0,0,0,0.5); border-radius: 8px; padding: 20px;">
+                <h2>Start Your Healthy Journey Here</h2>
+                <p>Let's Create a Healthy Lifestyle Together</p>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='img/carousel-2.jpg') }}" class="d-block w-100" alt="Fitness" style="height: 500px; object-fit: cover;">
+            <div class="carousel-caption d-none d-md-block" style="background: rgba(0,0,0,0.5); border-radius: 8px; padding: 20px;">
+                <h2>Professional Fitness Guidance</h2>
+                <p>Customized Exercise Plan for You</p>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='img/carousel-3.jpg') }}" class="d-block w-100" alt="Diet" style="height: 500px; object-fit: cover;">
+            <div class="carousel-caption d-none d-md-block" style="background: rgba(0,0,0,0.5); border-radius: 8px; padding: 20px;">
+                <h2>Healthy Diet Solutions</h2>
+                <p>Scientific Nutrition Recommendations</p>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='img/carousel-4.jpg') }}" class="d-block w-100" alt="Exchange" style="height: 500px; object-fit: cover;">
+            <div class="carousel-caption d-none d-md-block" style="background: rgba(0,0,0,0.5); border-radius: 8px; padding: 20px;">
+                <h2>Online Exchange</h2>
+                <p>Real-time and convenient currency exchange.</p>
+            </div>
+        </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#carouselIndicators" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#carouselIndicators" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+    </button>
+</div>
+
+<!-- Business display area -->
+<div class="container my-5">
+    <!-- First line -->
+    <div class="row align-items-center mb-5">
+        <div class="col-md-6">
+            <h2 class="display-4 mb-3">Scientific Dietary Advice</h2>
+            <p class="lead text-muted">Professional nutrition-based personalized diet plans to help achieve your health goals.</p>
+            <a href="{{ url_for('diet.index') }}" class="btn btn-primary btn-lg mt-3">Start Customization</a>
+        </div>
+        <div class="col-md-6">
+            <img src="{{ url_for('static', filename='img/diet.jpg') }}" class="img-fluid rounded shadow-lg" alt="Diet" style="transform: rotate(-2deg);">
+        </div>
+    </div>
+
+    <!-- Second line -->
+    <div class="row align-items-center mb-5">
+        <div class="col-md-6 order-md-2">
+            <h2 class="display-4 mb-3">Expert Fitness Coaching</h2>
+            <p class="lead text-muted">Customized workout plans based on your physical condition and fitness goals.</p>
+            <a href="{{ url_for('fitness.index') }}" class="btn btn-primary btn-lg mt-3">Get Started</a>
+        </div>
+        <div class="col-md-6 order-md-1">
+            <img src="{{ url_for('static', filename='img/fitness.jpg') }}" class="img-fluid rounded shadow-lg" alt="Fitness" style="transform: rotate(2deg);">
+        </div>
+    </div>
+
+    <!-- Third line -->
+    <div class="row align-items-center">
+        <div class="col-md-6">
+            <h2 class="display-4 mb-3">Real-time Weather Info</h2>
+            <p class="lead text-muted">Check weather updates to schedule outdoor activities safely and comfortably.</p>
+            <a href="{{ url_for('weather.index') }}" class="btn btn-primary btn-lg mt-3">Check Weather</a>
+        </div>
+        <div class="col-md-6">
+            <img src="{{ url_for('static', filename='img/weather.webp') }}" class="img-fluid rounded shadow-lg" alt="Weather" style="transform: rotate(-2deg);">
+        </div>
+    </div>
+    <!-- Fourth line -->
+    <div class="row align-items-center mb-5">
+        <div class="col-md-6 order-md-2">
+            <h2 class="display-4 mb-3">Real-time Exchange Info</h2>
+            <p class="lead text-muted">Real-time exchange rate conversion.</p>
+            <a href="{{ url_for('exchange.index') }}" class="btn btn-primary btn-lg mt-3">Exchange</a>
+        </div>
+        <div class="col-md-6 order-md-1">
+            <img src="{{ url_for('static', filename='img/exchange.jpg') }}" class="img-fluid rounded shadow-lg" alt="Fitness" style="transform: rotate(2deg);">
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <ul class="nav nav-tabs card-header-tabs" id="authTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active fw-bold" id="login-tab" data-bs-toggle="tab" href="#login" role="tab" style="color: #212121 !important;">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold" id="register-tab" data-bs-toggle="tab" href="#register" role="tab" style="color: #212121 !important;">Register</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="authTabsContent">
+                        <!-- Login Form -->
+                        <div class="tab-pane fade show active" id="login" role="tabpanel">
+                            <form method="POST" id="loginForm" action="{{ url_for('auth.login') }}" class="needs-validation" novalidate>
+                                <div class="mb-3">
+                                    <label for="loginEmail" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="loginEmail" name="email" required>
+                                    <div class="invalid-feedback">Please enter a valid email</div>
+                                </div>
+                                <div class="mb-3 position-relative">
+                                    <label for="loginPassword" class="form-label">Password</label>
+                                    <div class="position-relative">
+                                        <input type="password" class="form-control" id="loginPassword" name="password" required>
+                                        <i class="fa fa-eye password-toggle" data-target="loginPassword"></i>
+                                    </div>
+                                    <div class="invalid-feedback">Please enter your password</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Login</button>
+                            </form>
+                            <div class="text-center mt-3">
+                                <small><a href="{{ url_for('auth.forgot_password') }}" class="text-primary">Forgot Password?</a></small>
+                            </div>
+                        </div>
+
+                        <!-- Sign-up Forms -->
+                        <div class="tab-pane fade" id="register" role="tabpanel">
+                            <form method="POST" id="registerForm" action="{{ url_for('auth.register') }}" class="needs-validation" novalidate>
+                                <div class="mb-3">
+                                    <label for="registerNickname" class="form-label">Nickname</label>
+                                    <input type="text" class="form-control" id="registerNickname" name="nickname" maxlength="12" required>
+                                    <div class="invalid-feedback">Nickname cannot be empty and must be less than 12 characters</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="registerEmail" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="registerEmail" name="email" required>
+                                    <div class="invalid-feedback">Please enter a valid email</div>
+                                </div>
+                                <div class="mb-3 position-relative">
+                                    <label for="registerPassword" class="form-label">Password</label>
+                                    <div class="position-relative">
+                                        <input type="password" class="form-control" 
+                                               id="registerPassword" name="password" required>
+                                        <i class="fa fa-eye password-toggle" data-target="registerPassword"></i>
+                                    </div>
+                                    <div id="passwordHelp" class="invalid-feedback" style="display:none;">
+                                        Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+                                    </div>
+                                </div>                                
+                                <button type="submit" class="btn btn-primary w-100">Register</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-info mt-3" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FontAwesome Icon Library -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Keep the icon in the password input box to the right and centered vertically */
+.position-relative {
+    position: relative;
+}
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 1rem;
+}
+.password-toggle:hover {
+    color: #495057;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const forms = document.querySelectorAll('.needs-validation');
+    const passwordInput = document.getElementById('registerPassword');
+    const passwordHelp = document.getElementById('passwordHelp');
+
+    // Enable Bootstrap form validation
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', async function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            } else {
+                event.preventDefault();
+                const formData = new FormData(form);
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert(result.message || 'Success! Redirecting...');
+                    window.location.href = result.redirect;
+                } else {
+                    alert(result.errors ? Object.values(result.errors).join('\n') : 'An error occurred');
+                }
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+
+    // Password visualization switching
+    document.querySelectorAll('.password-toggle').forEach(icon => {
+        icon.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const passwordInput = document.getElementById(targetId);
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                this.classList.remove('fa-eye');
+                this.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                this.classList.remove('fa-eye-slash');
+                this.classList.add('fa-eye');
+            }
+        });
+    });
+
+    // Front-end password strength verification
+    passwordInput.addEventListener("input", function () {
+        const password = passwordInput.value;
+        const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])[A-Za-z\d\W_]{8,}$/;
+
+        console.log(password)
+        // Check if the password is eligible
+        if (pattern.test(password)) {
+            // If eligible, hide the tooltip
+            passwordHelp.style.display = "none";
+        } else {
+            // If the conditions are not met, a prompt message is displayed
+            passwordHelp.style.display = "block";
+        }
+    });
+
+});
+</script>
+{% endblock %}

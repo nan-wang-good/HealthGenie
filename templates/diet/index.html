@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+
+{% block title %}Diet - HealthGenie{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Area of Filters -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <select class="form-select" id="categoryFilter">
+                <option value="">Select Category</option>
+                {% for category in categories %}
+                    <option value="{{ category.strCategory }}">{{ category.strCategory }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="areaFilter">
+                <option value="">Select Area</option>
+                {% for area in areas %}
+                    <option value="{{ area.strArea }}">{{ area.strArea }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="ingredientFilter">
+                <option value="">Select Main Ingredient</option>
+                {% for ingredient in ingredients %}
+                    <option value="{{ ingredient.strIngredient }}">{{ ingredient.strIngredient }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Displayed Meals -->
+    <div class="row" id="mealsContainer">
+        {% for meal in meals %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{{ meal.strMealThumb }}/preview" class="card-img-top" alt="{{ meal.strMeal }}" loading="lazy">
+                <div class="card-body">
+                    <h5 class="card-title">{{ meal.strMeal }}</h5>
+                    {% if meal.strCategory or meal.strArea %}
+                    <p class="card-text">
+                        {% if meal.strCategory %}
+                        <small class="text-muted">Category: {{ meal.strCategory }}</small><br>
+                        {% endif %}
+                        {% if meal.strArea %}
+                        <small class="text-muted">Area: {{ meal.strArea }}</small>
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                    <button class="btn btn-primary" onclick="showMealDetails('{{ meal.idMeal }}')">View Details</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    <div id="pagination" class="mt-4"></div>
+    
+    <!-- Error Alert (hidden by default) -->
+    <div id="errorAlert" class="alert alert-danger mt-3" style="display:none">
+        <span id="errorMessage"></span>
+        <button type="button" class="btn-close float-end" onclick="hideError()"></button>
+    </div>
+</div>
+
+<!-- Meal details modal -->
+<div class="modal fade" id="mealDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Meal Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="mealDetailContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Loading meal details...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Global state
+let currentMeals = {{ meals|tojson|safe if meals else '[]' }};
+let currentPage = 1;
+const itemsPerPage = 9;
+
+// Initialize filters
+document.addEventListener('DOMContentLoaded', function() {
+    setupFilters();
+    renderMeals(currentMeals);
+});
+
+function setupFilters() {
+    const filters = {
+        'categoryFilter': 'c',
+        'areaFilter': 'a',
+        'ingredientFilter': 'i'
+    };
+
+    Object.keys(filters).forEach(filterId => {
+        document.getElementById(filterId).addEventListener('change', function() {
+            const param = filters[filterId];
+            const value = this.value;
+            
+            if (!value) {
+                renderMeals(currentMeals);
+                return;
+            }
+
+            showLoading();
+            
+            fetch(`/diet/filter?${param}=${encodeURIComponent(value)}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(response.statusText);
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    currentMeals = data.meals || [];
+                    currentPage = 1;
+                    renderMeals(currentMeals);
+                })
+                .catch(error => {
+                    showError(`Failed to load meals: ${error.message}`);
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+        });
+    });
+}
+
+function showMealDetails(mealId) {
+    const modal = new bootstrap.Modal('#mealDetailModal');
+    modal.show();
+    
+    fetch(`/diet/meal/${mealId}`)
+        .then(response => {
+            if (!response.ok) throw new Error(response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const meal = data;
+            const ingredients = [];
+            
+            // Extract ingredients and measures
+            for (let i = 1; i <= 20; i++) {
+                const ingredient = meal[`strIngredient${i}`];
+                if (ingredient) {
+                    ingredients.push({
+                        name: ingredient,
+                        measure: meal[`strMeasure${i}`] || ''
+                    });
+                }
+            }
+            
+            // Build modal content
+            document.getElementById('mealDetailContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <img src="${meal.strMealThumb}/preview" class="img-fluid rounded mb-3">
+                        ${meal.strYoutube ? `
+                        <div class="d-grid">
+                            <a href="${meal.strYoutube}" target="_blank" class="btn btn-danger">
+                                <i class="bi bi-youtube"></i> Watch on YouTube
+                            </a>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="col-md-6">
+                        <h4>${meal.strMeal}</h4>
+                        <p class="text-muted">${meal.strArea} • ${meal.strCategory}</p>
+                        
+                        <h5 class="mt-4">Ingredients</h5>
+                        <ul class="list-group mb-3">
+                            ${ingredients.map(ing => `
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>${ing.name}</span>
+                                    <span class="text-muted">${ing.measure}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        
+                        <h5>Instructions</h5>
+                        <div class="bg-light p-3 rounded">
+                            ${meal.strInstructions.replace(/\r\n/g, '<br>')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(error => {
+            document.getElementById('mealDetailContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Failed to load recipe</h5>
+                    <p>${error.message}</p>
+                    <button class="btn btn-sm btn-warning" onclick="showMealDetails('${mealId}')">
+                        Retry
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function renderMeals(meals) {
+    const container = document.getElementById('mealsContainer');
+    const pagination = document.getElementById('pagination');
+    
+    if (!meals || meals.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <h4>No meals found</h4>
+                <p>Try adjusting your filters</p>
+            </div>
+        `;
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    // Pagination
+    const totalPages = Math.ceil(meals.length / itemsPerPage);
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    const paginatedMeals = meals.slice(startIdx, startIdx + itemsPerPage);
+    
+    // Render meals
+    container.innerHTML = paginatedMeals.map(meal => `
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="${meal.strMealThumb}/preview" class="card-img-top" alt="${meal.strMeal}" loading="lazy">
+                <div class="card-body">
+                    <h5 class="card-title">${meal.strMeal}</h5>
+                    ${(meal.strCategory || meal.strArea) ? `
+                    <p class="card-text">
+                        ${meal.strCategory ? `<small class="text-muted">Category: ${meal.strCategory}</small><br>` : ''}
+                        ${meal.strArea ? `<small class="text-muted">Area: ${meal.strArea}</small>` : ''}
+                    </p>
+                    ` : ''}
+                    <button class="btn btn-primary" onclick="showMealDetails('${meal.idMeal}')">View Details</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    // Render pagination
+    pagination.innerHTML = `
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                </li>
+                ${Array.from({length: totalPages}, (_, i) => `
+                    <li class="page-item ${i + 1 === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i + 1})">${i + 1}</a>
+                    </li>
+                `).join('')}
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+                </li>
+            </ul>
+        </nav>
+    `;
+}
+
+function changePage(newPage) {
+    currentPage = newPage;
+    renderMeals(currentMeals);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function showLoading() {
+    document.getElementById('mealsContainer').innerHTML = `
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">Loading meals...</p>
+        </div>
+    `;
+    document.getElementById('pagination').innerHTML = '';
+}
+
+function hideLoading() {
+    // Handled within renderMeals()
+}
+
+function showError(message) {
+    const alert = document.getElementById('errorAlert');
+    document.getElementById('errorMessage').textContent = message;
+    alert.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('errorAlert').style.display = 'none';
+}
+</script>
+{% endblock %}
